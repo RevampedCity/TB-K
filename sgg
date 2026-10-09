@@ -1,0 +1,2542 @@
+-- Load Library --
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/RevampedCity/Shaman-Library/refs/heads/main/Library'))()
+local Window = Library:Window({ Text = "Tha Bronx 3 Shop                       #TB3K" })
+
+-- =========================
+-- SERVICES / SHARED HELPERS
+-- =========================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local Lighting = game:GetService("Lighting")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local function normalize(str)
+    return tostring(str):lower():gsub("%s+", ""):gsub("[%W_]", "")
+end
+
+local function getCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+local function getHumanoid()
+    return getCharacter():WaitForChild("Humanoid")
+end
+
+local function getHRP()
+    return getCharacter():WaitForChild("HumanoidRootPart")
+end
+
+local function showNotification(message)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Revamped.City",
+            Text = message,
+            Duration = 5
+        })
+    end)
+end
+
+local function showGui(message, color)
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 350, 0, 120)
+    frame.Position = UDim2.new(0.5, -175, 0.5, -60)
+    frame.BackgroundColor3 = color
+    frame.BorderSizePixel = 0
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.Parent = screenGui
+
+    local uICorner = Instance.new("UICorner")
+    uICorner.CornerRadius = UDim.new(0, 15)
+    uICorner.Parent = frame
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, -20, 1, -20)
+    textLabel.Position = UDim2.new(0, 10, 0, 10)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.Text = message
+    textLabel.TextWrapped = true
+    textLabel.TextYAlignment = Enum.TextYAlignment.Center
+    textLabel.TextXAlignment = Enum.TextXAlignment.Center
+    textLabel.Parent = frame
+
+    task.delay(5, function()
+        if screenGui then
+            screenGui:Destroy()
+        end
+    end)
+end
+
+local function teleport(x, y, z)
+    local humanoid = getHumanoid()
+    local hrp = getHRP()
+
+    humanoid:ChangeState(0)
+    repeat task.wait() until not LocalPlayer:GetAttribute("LastACPos")
+    hrp.CFrame = CFrame.new(x, y, z)
+end
+
+local function createTeleportButtons(section, locations)
+    for _, loc in ipairs(locations) do
+        section:Button({
+            Text = loc.name,
+            Callback = function()
+                teleport(loc.position.X, loc.position.Y, loc.position.Z)
+            end
+        })
+    end
+end
+
+local function findPlayerByText(input)
+    if not input or input == "" then return nil end
+
+    local search = normalize(input)
+    local bestMatch = nil
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local username = normalize(plr.Name)
+            local displayname = normalize(plr.DisplayName)
+
+            if username == search or displayname == search then
+                return plr
+            end
+
+            if username:sub(1, #search) == search or displayname:sub(1, #search) == search then
+                bestMatch = plr
+            elseif username:find(search, 1, true) or displayname:find(search, 1, true) then
+                bestMatch = plr
+            end
+        end
+    end
+
+    return bestMatch
+end
+
+local function findPlayerByPartialName(name)
+    name = tostring(name):lower()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower():sub(1, #name) == name or (plr.DisplayName and plr.DisplayName:lower():sub(1, #name) == name) then
+            return plr
+        end
+    end
+    return nil
+end
+
+local function setAllPromptsHoldDurationZero()
+    for _, prompt in pairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            prompt.HoldDuration = 0
+        end
+    end
+end
+
+-- =========================
+-- MAIN TAB
+-- =========================
+local mainTab = Window:Tab({ Text = "Main" })
+
+-- Spectate
+local spectateSection = mainTab:Section({ Text = "Spectate" })
+
+spectateSection:Input({
+    Text = "Player",
+    Placeholder = "Username / DisplayName",
+    Callback = function(value)
+        spectateTargetText = value
+    end
+})
+
+spectateSection:Toggle({
+    Text = "Enable Spectate",
+    Default = false,
+    Callback = function(state)
+
+        getgenv().SpectateEnabled = state
+        getgenv().SpectateTarget = spectateTargetText
+
+        if state then
+            loadstring(game:HttpGet("https://pastebin.com/raw/T4j93KZ4"))()
+        end
+    end
+})
+
+-- Character
+local characterSection = mainTab:Section({ Text = "Character" })
+
+
+characterSection:Button({
+    Text = "Instant Prompts",
+    Description = "Removes the E Holding Time Anywhere",
+    Callback = function()
+        local function isInsideMimicATM(obj)
+            local parent = obj.Parent
+            while parent do
+                if parent.Name == "MimicATM" then
+                    return true
+                end
+                parent = parent.Parent
+            end
+            return false
+        end
+
+        local function removeHoldDuration(obj)
+            if obj:IsA("ProximityPrompt") and not isInsideMimicATM(obj) then
+                obj.HoldDuration = 0
+            end
+        end
+
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            removeHoldDuration(obj)
+        end
+
+        workspace.DescendantAdded:Connect(function(obj)
+            if obj:IsA("ProximityPrompt") then
+                removeHoldDuration(obj)
+            elseif obj.GetChildren then
+                for _, desc in ipairs(obj:GetDescendants()) do
+                    removeHoldDuration(desc)
+                end
+            end
+        end)
+    end
+})
+
+characterSection:Button({
+    Text = "Unban Voice Chat",
+    Description = "Attempts to rejoin Voice Chat",
+    Callback = function()
+        local success, result = pcall(function()
+            game:GetService("VoiceChatService"):JoinVoice()
+        end)
+        if success then
+            print("Attempted to join voice successfully.")
+        else
+            warn("Failed to join voice:", result)
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "Keep Guns On Death",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().KeepGunsEnabled = v
+
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/VNezhgRu"))()
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "No Knockback",
+    Description = "Disables the knockback permanently",
+    Default = false,
+    Callback = function(state)
+        local function removeKnockback()
+            for _, v in ipairs(getCharacter():GetDescendants()) do
+                if v:IsA("BodyVelocity") or v:IsA("LinearVelocity") or v:IsA("VectorForce") then
+                    v:Destroy()
+                end
+            end
+            if ReplicatedStorage:FindFirstChild("AE") then
+                ReplicatedStorage.AE:Destroy()
+            end
+            getHRP().ChildAdded:Connect(function(obj)
+                if obj:IsA("BodyVelocity") or obj:IsA("LinearVelocity") or obj:IsA("VectorForce") then
+                    obj:Destroy()
+                end
+            end)
+        end
+        if state then
+            removeKnockback()
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "No Hunger",
+    Description = "Disables the hunger system permanently",
+    Default = false,
+    Callback = function(state)
+        local function disableHunger()
+            local hunger = LocalPlayer.PlayerGui:FindFirstChild("Hunger")
+            if hunger then
+                local hungerScript = hunger:FindFirstChild("Frame") and hunger.Frame:FindFirstChild("Frame") and hunger.Frame.Frame:FindFirstChild("Frame") and hunger.Frame.Frame.Frame:FindFirstChild("HungerBarScript")
+                if hungerScript then hungerScript.Disabled = true end
+            end
+        end
+        if state then
+            task.spawn(function()
+                while state do
+                    task.wait(1)
+                    disableHunger()
+                end
+            end)
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "No Sleep",
+    Description = "Disables the sleep system permanently",
+    Default = false,
+    Callback = function(state)
+        local function disableSleep()
+            local sleepGui = LocalPlayer.PlayerGui:FindFirstChild("SleepGui")
+            if sleepGui then
+                local sleepScript = sleepGui:FindFirstChild("Frame") and sleepGui.Frame:FindFirstChild("sleep") and sleepGui.Frame.sleep:FindFirstChild("SleepBar") and sleepGui.Frame.sleep.SleepBar:FindFirstChild("sleepScript")
+                if sleepScript then sleepScript.Disabled = true end
+            end
+        end
+        if state then
+            task.spawn(function()
+                while state do
+                    task.wait(1)
+                    disableSleep()
+                end
+            end)
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "No Stamina",
+    Description = "Disables the stamina system permanently",
+    Default = false,
+    Callback = function(state)
+        local function disableStamina()
+            local runGui = LocalPlayer.PlayerGui:FindFirstChild("Run")
+            if runGui then
+                local stamina = runGui:FindFirstChild("Frame") and runGui.Frame:FindFirstChild("Frame") and runGui.Frame.Frame:FindFirstChild("Frame") and runGui.Frame.Frame.Frame:FindFirstChild("StaminaBarScript")
+                if stamina then stamina.Disabled = true end
+            end
+        end
+        if state then
+            task.spawn(function()
+                while state do
+                    task.wait(1)
+                    disableStamina()
+                end
+            end)
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "No Fall",
+    Description = "Disables Fall Damage",
+    Default = false,
+    Callback = function(state)
+        local function disableFall()
+            local fallDamage = getCharacter():FindFirstChild("FallDamageRagdoll")
+            if fallDamage then fallDamage.Disabled = true end
+        end
+        if state then
+            task.spawn(function()
+                while state do
+                    task.wait(1)
+                    disableFall()
+                end
+            end)
+        end
+    end
+})
+
+characterSection:Toggle({
+    Text = "No Jail",
+    State = false,
+    Callback = function(value)
+        local jailRemote = ReplicatedStorage:FindFirstChild("JailRemote")
+        if value and jailRemote then
+            jailRemote:Destroy()
+        end
+    end
+})
+
+local antiRentPayEnabled = false
+characterSection:Toggle({
+    Text = "No Rent Pay",
+    State = false,
+    Callback = function(value)
+        antiRentPayEnabled = value
+        if value then
+            task.spawn(function()
+                while antiRentPayEnabled do
+                    task.wait(1)
+                    local rentGui = LocalPlayer.PlayerGui:FindFirstChild("RentGui")
+                    if rentGui then
+                        local rentScript = rentGui:FindFirstChild("LocalScript")
+                        if rentScript then
+                            rentScript.Disabled = true
+                            rentScript:Destroy()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+})
+
+-- =========================
+-- VISUAL TAB FINAL
+-- =========================
+local VisualTab = Window:Tab({ Text = "Visual" })
+
+local ESPSection = VisualTab:Section({ Text = "ESP" })
+
+ESPSection:Toggle({Text="Box ESP",Callback=function(v) getgenv().ESP_Box=v loadstring(game:HttpGet("https://pastebin.com/raw/1AUx727Y"))() end})
+ESPSection:Toggle({Text="Name ESP",Callback=function(v) getgenv().ESP_Name=v loadstring(game:HttpGet("https://pastebin.com/raw/1AUx727Y"))() end})
+ESPSection:Toggle({Text="Health ESP",Callback=function(v) getgenv().ESP_Health=v loadstring(game:HttpGet("https://pastebin.com/raw/1AUx727Y"))() end})
+ESPSection:Toggle({Text="Friend Check",Callback=function(v) getgenv().ESP_Friend=v end})
+ESPSection:Toggle({Text="Police Check",Callback=function(v) getgenv().ESP_Police=v end})
+ESPSection:Toggle({Text="Gun ESP",Callback=function(v) getgenv().ESP_Gun=v loadstring(game:HttpGet("https://pastebin.com/raw/1AUx727Y"))() end})
+
+ESPSection:Slider({
+    Text="Text Size",
+    Min=8,
+    Max=30,
+    Default=10,
+    Callback=function(v)
+        getgenv().ESP_TextSize=v
+    end
+})
+
+local EffectsSection = VisualTab:Section({ Text = "Effects", Side = "Right" })
+EffectsSection:Button({
+    Text = "Anti-CameraShake",
+    Description = "Disables the camera shake effect permanently",
+    Callback = function()
+        task.spawn(function()
+            while true do
+                task.wait(1)
+                local bobbing = getCharacter():FindFirstChild("CameraBobbing")
+                if bobbing then bobbing:Destroy() end
+            end
+        end)
+    end
+})
+
+EffectsSection:Button({
+    Text = "Boost FPS (Potato PC)",
+    Description = "Deletes all specific effects from Lighting permanently",
+    Callback = function()
+        for _, obj in pairs(Lighting:GetChildren()) do
+            if obj:IsA("PostEffect") or obj:IsA("BloomEffect") or obj:IsA("SunRaysEffect") or obj:IsA("DepthOfFieldEffect") then
+                pcall(function() obj:Destroy() end)
+            end
+        end
+        task.spawn(function()
+            pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/RevampedCity/Shaman-Library/refs/heads/main/Remove%20Lighting"))()
+            end)
+        end)
+    end
+})
+
+EffectsSection:Button({ Text = "Change To Day", Description = "Click to set the game time to permanent day.", Callback = function() Lighting.ClockTime = 12 end })
+EffectsSection:Button({ Text = "Change To Night", Description = "Click to set the game time to permanent night.", Callback = function() Lighting.ClockTime = 0 end })
+
+
+-- Movement
+local movementSection = mainTab:Section({ Text = "Movement", Side = "Right" })
+movementSection:Toggle({
+    Text = "CFrame Walkspeed",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().CFrameWalkEnabled = v
+
+        loadstring(game:HttpGet("https://pastebin.com/raw/CLB8zyCd"))()
+    end
+})
+
+-- Respawn
+local respawnSection = mainTab:Section({ Text = "Respawn", Side = "Right" })
+local lastPosition = nil
+local respawnConnection = nil
+local deathConnection = nil
+
+respawnSection:Toggle({
+    Text = "Faster Respawn",
+    Description = "Automatically respawns you when you die",
+    Default = false,
+    Callback = function(state)
+        getgenv().InstantRespawnEnabled = state
+        if state then
+            task.spawn(function()
+                while getgenv().InstantRespawnEnabled do
+                    local character = LocalPlayer.Character
+                    if character and character:FindFirstChild("Humanoid") then
+                        if character.Humanoid.Health <= 0 then
+                            task.wait(0.1)
+                            local respawnRemote = ReplicatedStorage:FindFirstChild("RespawnRE")
+                            if respawnRemote then
+                                respawnRemote:FireServer()
+                            end
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end
+})
+
+respawnSection:Toggle({
+    Text = "Respawn Where Died",
+    Default = false,
+    Callback = function(state)
+        if state then
+            local function setup()
+                local character = getCharacter()
+                local humanoid = getHumanoid()
+                local root = getHRP()
+                if deathConnection then deathConnection:Disconnect() end
+                if respawnConnection then respawnConnection:Disconnect() end
+
+                deathConnection = humanoid.Died:Connect(function()
+                    if root then lastPosition = root.CFrame end
+                end)
+
+                respawnConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+                    local newRoot = char:WaitForChild("HumanoidRootPart")
+                    if lastPosition then newRoot.CFrame = lastPosition end
+                    setup()
+                end)
+            end
+            setup()
+        else
+            if respawnConnection then respawnConnection:Disconnect() respawnConnection = nil end
+            if deathConnection then deathConnection:Disconnect() deathConnection = nil end
+            lastPosition = nil
+        end
+    end
+})
+
+respawnSection:Button({
+    Text = "Set Spawn",
+    Callback = function()
+        local character = LocalPlayer.Character
+        if not character then return end
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChild("Humanoid")
+        if not humanoidRootPart or not humanoid then return end
+        lastPosition = humanoidRootPart.CFrame
+        humanoid.Health = 0
+        LocalPlayer.CharacterAdded:Wait()
+        local newRoot = getHRP()
+        if lastPosition then newRoot.CFrame = lastPosition end
+    end
+})
+
+respawnSection:Button({
+    Text = "Remove Spawn",
+    Callback = function()
+        lastPosition = nil
+        print("Custom spawn position removed. Next respawn will be normal.")
+    end
+})
+
+-- Utility
+local utilitySection = mainTab:Section({ Text = "Utility", Side = "Right" })
+utilitySection:Button({
+    Text = "Drop All Tools",
+    Callback = function()
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        local character = getCharacter()
+        if backpack then
+            for _, tool in ipairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tool.Parent = character
+                    task.wait(0.1)
+                    tool.Parent = workspace
+                end
+            end
+        end
+        for _, tool in ipairs(character:GetChildren()) do
+            if tool:IsA("Tool") then
+                tool.Parent = workspace
+            end
+        end
+    end
+})
+
+utilitySection:Toggle({
+    Text = "Admin Alert",
+    Description = "Notifies when an admin joins",
+    Default = false,
+    Callback = function(v)
+        _G.AdminAlertEnabled = v
+    end
+})
+
+local function checkForAdmin()
+    for _, player in ipairs(Players:GetPlayers()) do
+        for _, child in ipairs(player:GetChildren()) do
+            if child.Name:find("_Tracker") then
+                showNotification("User: " .. player.Name .. " is an Admin! Be Careful!")
+                return
+            end
+        end
+    end
+end
+
+spawn(function()
+    while wait(10) do
+        if _G.AdminAlertEnabled then
+            checkForAdmin()
+        end
+    end
+end)
+
+utilitySection:Toggle({
+    Text = "Grab Bags",
+    Description = "Gives you the Grab Bags tool and keeps it after respawn",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().GrabBagsEnabled = v
+
+        loadstring(game:HttpGet("https://pastebin.com/raw/Tzzf3ayN"))()
+    end
+})
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+local deletedParts = {}
+local cDeleteConnection
+local deletedParts = {}
+local cDeleteConnection
+
+utilitySection:Toggle({
+    Text = "C Delete",
+    Description = "Deletes objects you click while holding C, restores on untoggle",
+    Default = false,
+
+    Callback = function(state)
+        if state then
+            deletedParts = {}
+
+            if cDeleteConnection then
+                cDeleteConnection:Disconnect()
+            end
+
+            cDeleteConnection = mouse.Button1Down:Connect(function()
+                if not UserInputService:IsKeyDown(Enum.KeyCode.C) then return end
+
+                local target = mouse.Target
+                if target and target:IsA("BasePart") then
+                    local clone = target:Clone()
+                    local parent = target.Parent
+
+                    table.insert(deletedParts, {
+                        Clone = clone,
+                        Parent = parent
+                    })
+
+                    target:Destroy()
+                end
+            end)
+        else
+            if cDeleteConnection then
+                cDeleteConnection:Disconnect()
+                cDeleteConnection = nil
+            end
+
+            for _, data in ipairs(deletedParts) do
+                if data.Clone and data.Parent then
+                    data.Clone.Parent = data.Parent
+                end
+            end
+
+            deletedParts = {}
+        end
+    end
+})
+-- =========================
+-- GUIS TAB
+-- =========================
+
+local guiSection = mainTab:Section({ Text = "Open GUIs" })
+
+guiSection:Button({ Text = "Bronx Clothing", Callback = function() LocalPlayer.PlayerGui["Bronx CLOTHING"].Enabled = true end })
+guiSection:Button({ Text = "Bronx Market", Callback = function() LocalPlayer.PlayerGui["Bronx Market 2"].Enabled = true end })
+guiSection:Button({ Text = "Bronx Pawning", Callback = function() LocalPlayer.PlayerGui["Bronx PAWNING"].Enabled = true end })
+guiSection:Button({ Text = "Bronx Tattoos", Callback = function() LocalPlayer.PlayerGui["Bronx TATTOOS"].Enabled = true end })
+guiSection:Button({ Text = "Bronx Crafting", Callback = function() LocalPlayer.PlayerGui.CraftGUI.Main.Visible = true end })
+guiSection:Button({
+    Text = "Bronx Garage",
+    Callback = function()
+        LocalPlayer.PlayerGui.ColorWheel.Enabled = true
+        local Notification = Instance.new("ScreenGui")
+        Notification.Name = "Notification"
+        Notification.Parent = LocalPlayer.PlayerGui
+        local TextLabel = Instance.new("TextLabel")
+        TextLabel.Parent = Notification
+        TextLabel.Text = "Press 'Back' Unless You Have The Game Pass"
+        TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        TextLabel.BackgroundTransparency = 0.5
+        TextLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        TextLabel.Position = UDim2.new(0.5, -150, 0, 20)
+        TextLabel.Size = UDim2.new(0, 300, 0, 50)
+        TextLabel.TextScaled = true
+        TextLabel.AnchorPoint = Vector2.new(0.5, 0)
+        delay(3, function() Notification:Destroy() end)
+    end
+})
+
+
+
+-- =========================
+-- TELEPORT TAB
+-- =========================
+local TeleportTab = Window:Tab({ Text = "Teleport" })
+
+local teleportSection = TeleportTab:Section({ Text = "Players", Side = "Right" })
+local playerName = ""
+teleportSection:Input({
+    Text = "Enter Player Name",
+    Placeholder = "Player Name",
+    Callback = function(value)
+        playerName = value
+    end
+})
+
+teleportSection:Button({
+    Text = "Teleport to Player",
+    Callback = function()
+        local target = findPlayerByPartialName(playerName)
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local pos = target.Character.HumanoidRootPart.Position
+            teleport(pos.X, pos.Y, pos.Z)
+        end
+    end
+})
+
+
+local FunSection = TeleportTab:Section({ Text = "Fun" })
+createTeleportButtons(FunSection, {
+    {name = "Tha Club", position = Vector3.new(-87, 284, -696)},
+    {name = "Marleys Studio", position = Vector3.new(-1549, 281, -1028)}
+})
+
+local SafeSection = TeleportTab:Section({ Text = "Safe" })
+createTeleportButtons(SafeSection, {
+    {name = "Hospital", position = Vector3.new(-1592, 254, 18)},
+	{name = "Bank Tools", position = Vector3.new(-404, 334, -556)},
+    {name = "Empty Room", position = Vector3.new(-118, 397, -531)}
+})
+
+local GunSection = TeleportTab:Section({ Text = "Gun Shops", Side = "Right" })
+createTeleportButtons(GunSection, {
+    {name = "Xotic Guns", position = Vector3.new(60823, 87609, -350)},
+    {name = "Studio Guns", position = Vector3.new(72422, 128856, -1087)},
+    {name = "The Gun Shop 1", position = Vector3.new(66201, 123616, 5750)},
+    {name = "The Gun Shop 2", position = Vector3.new(92953, 122099, 17229)}
+})
+
+local ShopSection = TeleportTab:Section({ Text = "Shops" })
+createTeleportButtons(ShopSection, {
+    {name = "Frozen", position = Vector3.new(-213, 284, -1171)},
+    {name = "Walgreens", position = Vector3.new(-411, 254, -372)},
+    {name = "DeliStore", position = Vector3.new(-52, 283, -1053)},
+    {name = "Dealership", position = Vector3.new(-401, 253, -1241)},
+    {name = "Wireless & Electronics", position = Vector3.new( -680, 254, -683)},
+    {name = "Dollar Central", position = Vector3.new(-391, 254, -1075)},
+  	{name = "Popeyeas", position = Vector3.new(-78, 284, -768)},
+  	{name = "Bexas", position = Vector3.new(-770, 254, -785)},
+    {name = "Mcdonalds", position = Vector3.new(-456, 254, -951)},
+    {name = "Little Pizzaz", position = Vector3.new(-608, 254, -800)},
+    {name = "Drip Shop", position = Vector3.new(67464, 10489, 550)},
+    {name = "Barber Shop", position = Vector3.new(-745, 254, -763)},
+    {name = "Tattoo Shop", position = Vector3.new(-632, 254, -598)},
+    {name = "Jamaican Food", position = Vector3.new(-670, 254, -805)},
+    {name = "Chinese Food", position = Vector3.new(-677, 254, -817)},
+    {name = "Chicken & Wings", position = Vector3.new(-961, 253, -818)},
+    {name = "Backpack Shop", position = Vector3.new(-713, 254, -687)},
+    {name = "Super Deli", position = Vector3.new(-913, 254, -816)},
+    {name = "Gas Station 1", position = Vector3.new(-365, 253, -782)},
+    {name = "Gas Station 2", position = Vector3.new(-671, 255, -1146)},
+    {name = "Gas Station 3", position = Vector3.new(-688, 255, -524)},
+    {name = "Gas Station 4", position = Vector3.new(-1765, 253, -1249)}
+})
+
+local AptSection = TeleportTab:Section({ Text = "Apartments", Side = "Right" })
+createTeleportButtons(AptSection, {
+    {name = "Penthouse", position = Vector3.new(-116, 397, -563)},
+    {name = "Apartment 1", position = Vector3.new(-1032, 253, -278)},
+    {name = "Apartment 2", position = Vector3.new(-1022, 258, -505)},
+    {name = "Apartment 3", position = Vector3.new(-1587, 254, -260)},
+    {name = "Garden Villas", position = Vector3.new(-670, 254, -281)}
+})
+
+local JobsSection = TeleportTab:Section({ Text = "Jobs" })
+createTeleportButtons(JobsSection, {
+    {name = "Bank", position = Vector3.new(-229, 284, -1226)},
+    {name = "Pawnshop", position = Vector3.new(-1052, 253, -817)},
+    {name = "Money Wash", position = Vector3.new(-987, 254, -676)},
+    {name = "Koolaid Sell Truck", position = Vector3.new(-69, 287, -320)},
+    {name = "IceBox Rob", position = Vector3.new(-214, 283, -1256)},
+    {name = "Construction", position = Vector3.new(-1732, 371, -1176)},
+    {name = "Card/Swiper", position = Vector3.new(-618, 254, -1219)},
+    {name = "Laptop", position = Vector3.new(-1016, 254, -251)},
+    {name = "Warehouse", position = Vector3.new(-1561, 258, -1174)},
+    {name = "On Tha Radar", position = Vector3.new(93377, 14485, 566)}
+})
+
+
+
+
+-- =========================
+-- VEHICLE TAB
+-- =========================
+local vehicleTab = Window:Tab({ Text = "Vehicle" })
+
+local sitSection = vehicleTab:Section({ Text = "Sit Bring", Side = "Left" })
+local flySection = vehicleTab:Section({ Text = "Fly", Side = "Left" })
+
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- =========================
+-- SIT BRING
+-- =========================
+sitSection:Button({
+    Text = "Bring Owned Car",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/vgbHXeSu"))()
+    end
+})
+
+sitSection:Button({
+    Text = "Bring Other Car",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/B8eCphi0"))()
+    end
+})
+
+sitSection:Button({
+    Text = "Bring All Cars",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/MaTmA7h6"))()
+    end
+})
+
+flySection:Toggle({
+    Text = "Fly",
+    Default = false,
+    Callback = function(v)
+        getgenv().VehicleFly = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/N4f1pJh2"))()
+    end
+})
+
+flySection:Slider({
+    Text = "Fly Speed",
+    Min = 1,
+    Max = 20,
+    Default = 1,
+    Callback = function(v)
+        getgenv().VehicleFlySpeed = v
+    end
+})
+
+-- =========================
+-- COMBAT TAB
+-- =========================
+local combatTab = Window:Tab({ Text = "Combat" })
+
+local gunModsSection = combatTab:Section({ Text = "Gun Mods", Side = "Left" })
+
+gunModsSection:Toggle({
+    Text = "Infinite Ammo",
+    Callback = function(v)
+        getgenv().InfAmmo = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/uKywu49A"))()
+    end
+})
+
+gunModsSection:Toggle({
+    Text = "No Recoil",
+    Callback = function(v)
+        getgenv().NoRecoil = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/uKywu49A"))()
+    end
+})
+
+gunModsSection:Toggle({
+    Text = "Full Auto",
+    Callback = function(v)
+        getgenv().FullAuto = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/uKywu49A"))()
+    end
+})
+
+gunModsSection:Toggle({
+    Text = "Instant Fire",
+    Callback = function(v)
+        getgenv().InstantFire = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/uKywu49A"))()
+    end
+})
+
+gunModsSection:Toggle({
+    Text = "No Spread",
+    Callback = function(v)
+        getgenv().NoSpread = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/uKywu49A"))()
+    end
+})
+
+gunModsSection:Toggle({
+    Text = "Instant Reload",
+    Callback = function(v)
+        getgenv().InstantReload = v
+        loadstring(game:HttpGet("https://pastebin.com/raw/uKywu49A"))()
+    end
+})
+
+-- =========================
+-- RECOVERY TAB
+-- =========================
+local recoveryTab = Window:Tab({ Text = "Recovery" })
+
+local dupeSection = recoveryTab:Section({ Text = "Dupes" })
+dupeSection:Button({
+    Text = "Old Bag Dupe",
+    Callback = function()
+        loadstring(game:HttpGet('https://pastebin.com/raw/PYk9fkSH'))()
+    end
+})
+
+dupeSection:Button({
+    Text = "New Item Dupe",
+    Callback = function()
+        local Player = LocalPlayer
+        local Character = getCharacter()
+        local Backpack = Player:WaitForChild("Backpack")
+        local Tool = Character:FindFirstChildOfClass("Tool")
+        if not Tool then return end
+
+        Tool.Parent = Backpack
+        task.wait(0.5)
+
+        local ToolName = Tool.Name
+        local ToolId = nil
+
+        local function getPing()
+            if typeof(Player.GetNetworkPing) == "function" then
+                local success, result = pcall(function()
+                    return tonumber(string.match(Player:GetNetworkPing(), "%d+"))
+                end)
+                if success and result then return result end
+            end
+            return 100
+        end
+
+        local ping = getPing()
+        local delay = 0.25 + ((math.clamp(ping, 0, 300) / 300) * 0.03)
+
+        local marketconnection = ReplicatedStorage.MarketItems.ChildAdded:Connect(function(item)
+            if item.Name == ToolName then
+                local owner = item:WaitForChild("owner", 2)
+                if owner and owner.Value == Player.Name then
+                    ToolId = item:GetAttribute("SpecialId")
+                end
+            end
+        end)
+
+        task.spawn(function()
+            ReplicatedStorage.ListWeaponRemote:FireServer(ToolName, 99999)
+        end)
+
+        task.wait(delay)
+
+        task.spawn(function()
+            ReplicatedStorage.BackpackRemote:InvokeServer("Store", ToolName)
+        end)
+
+        task.wait(3)
+
+        if ToolId then
+            task.spawn(function()
+                ReplicatedStorage.BuyItemRemote:FireServer(ToolName, "Remove", ToolId)
+            end)
+        end
+
+        task.spawn(function()
+            ReplicatedStorage.BackpackRemote:InvokeServer("Grab", ToolName)
+        end)
+
+        marketconnection:Disconnect()
+        task.wait(1)
+    end
+})
+
+-- Safe Dupe Once + Auto Safe Dupe
+getgenv().plugzStoreDuped = true
+
+local function GetSafe()
+    local safe = nil
+
+    pcall(function()
+        local doorSS = workspace:WaitForChild("HomeDoorSS", 3)
+        local homeDoor = doorSS and doorSS:WaitForChild("HomeDoor", 3)
+        safe = homeDoor and homeDoor:WaitForChild("Safe", 3)
+    end)
+
+    if not safe then
+        pcall(function()
+            local map = workspace:FindFirstChild("1# Map")
+            local crosswalks = map and map:FindFirstChild("2 Crosswalks")
+            local safes = crosswalks and crosswalks:FindFirstChild("Safes")
+            if safes then
+                for _, v in ipairs(safes:GetChildren()) do
+                    local part = v:FindFirstChild("Union") or v:FindFirstChildWhichIsA("BasePart")
+                    if part then
+                        safe = v
+                        break
+                    end
+                end
+            end
+        end)
+    end
+
+    return safe
+end
+
+-- Teleport to the detected safe from the Recovery tab.
+dupeSection:Button({
+    Text = "Go To Safe",
+    Description = "Teleports your character beside the detected safe.",
+    Callback = function()
+        local safe = GetSafe()
+        if not safe then
+            showNotification("Safe not found!")
+            return
+        end
+
+        local safePart = safe:IsA("BasePart") and safe
+            or safe:FindFirstChild("Union")
+            or safe:FindFirstChildWhichIsA("BasePart", true)
+        if not safePart then
+            showNotification("Could not find a position for the safe.")
+            return
+        end
+
+        local ok, err = pcall(function()
+            local target = safePart.Position + Vector3.new(0, 3, 5)
+            teleport(target.X, target.Y, target.Z)
+        end)
+        if ok then
+            showNotification("Teleported to the safe.")
+        else
+            warn("Go To Safe failed:", err)
+            showNotification("Teleport failed; check the console.")
+        end
+    end
+})
+
+local safeDupeBusy = false
+local autoSafeDupeEnabled = false
+
+local function runSafeDupe(showMessages)
+    if safeDupeBusy then
+        return false, "A safe operation is already running."
+    end
+
+    local character = getCharacter()
+    local tool = character and character:FindFirstChildOfClass("Tool")
+    if not tool then
+        return false, "Equip the item you want to process first."
+    end
+
+    local toolName = tool.Name
+    local safe = GetSafe()
+    if not safe then
+        return false, "Safe not found!"
+    end
+
+    local inventoryRemote = ReplicatedStorage:FindFirstChild("Inventory")
+    local backpackRemote = ReplicatedStorage:FindFirstChild("BackpackRemote")
+    if not inventoryRemote or not backpackRemote then
+        return false, "Required inventory remotes were not found."
+    end
+
+    safeDupeBusy = true
+    local ok, err = pcall(function()
+        pcall(function()
+            character:WaitForChild("Humanoid"):UnequipTools()
+        end)
+        backpackRemote:InvokeServer("Store", toolName)
+        inventoryRemote:FireServer("Change", toolName, "Backpack", safe)
+        task.wait(2)
+        backpackRemote:InvokeServer("Grab", toolName)
+    end)
+    safeDupeBusy = false
+
+    if not ok then
+        warn("Safe operation failed:", err)
+        return false, "Safe operation failed; check the console."
+    end
+
+    return true, "Safe requests sent for " .. toolName .. ". Verify your inventory."
+end
+
+dupeSection:Button({
+    Text = "Safe Dupe Once",
+    Description = "Attempts one store and retrieve cycle using the equipped tool.",
+    Callback = function()
+        task.spawn(function()
+            showNotification("Attempting safe operation...")
+            local ok, message = runSafeDupe(true)
+            showNotification(message)
+        end)
+    end
+})
+
+dupeSection:Toggle({
+    Text = "Auto Safe Dupe",
+    Description = "Repeats the safe operation while enabled. Keep the target tool equipped.",
+    Default = false,
+    Callback = function(state)
+        autoSafeDupeEnabled = state
+        getgenv().AutoSafeDupeEnabled = state
+
+        if state then
+            task.spawn(function()
+                showNotification("Auto Safe Dupe enabled.")
+                while autoSafeDupeEnabled do
+                    local ok, message = runSafeDupe(false)
+                    if not ok then
+                        -- Avoid spamming notifications while waiting for the tool or safe.
+                        if message ~= "A safe operation is already running." then
+                            showNotification(message)
+                        end
+                        task.wait(3)
+                    else
+                        task.wait(5)
+                    end
+                end
+            end)
+        else
+            showNotification("Auto Safe Dupe disabled.")
+        end
+    end
+})
+
+local MoneySection = recoveryTab:Section({ Text = "Max Money", Side = "Right" })
+
+
+MoneySection:Button({
+    Text = "Max Money",
+    Callback = function()
+
+        local backpack = LocalPlayer:WaitForChild("Backpack")
+        local itemsToBuy = {"FijiWater", "FreshWater", "Ice-Fruit Bag", "Ice-Fruit Cupz"}
+
+        -- 🔥 RANDOM FREE POT
+        local function getRandomFreeCookingPot()
+            local pots = workspace:WaitForChild("CookingPots"):GetChildren()
+            local players = game.Players:GetPlayers()
+            local freePots = {}
+
+            for _, pot in ipairs(pots) do
+                local potPos
+
+                if pot:IsA("Model") then
+                    potPos = pot:GetPivot().Position
+                elseif pot:IsA("BasePart") then
+                    potPos = pot.Position
+                end
+
+                if potPos then
+                    local occupied = false
+
+                    for _, plr in ipairs(players) do
+                        local char = plr.Character
+                        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+                        if hrp and (hrp.Position - potPos).Magnitude < 15 then
+                            occupied = true
+                            break
+                        end
+                    end
+
+                    if not occupied then
+                        table.insert(freePots, pot)
+                    end
+                end
+            end
+
+            if #freePots > 0 then
+                return freePots[math.random(1, #freePots)]
+            end
+
+            return nil
+        end
+
+        local function hasItemAnywhere(itemName)
+            local character = getCharacter()
+            return backpack:FindFirstChild(itemName) or character:FindFirstChild(itemName)
+        end
+
+        local function equipItem(itemName)
+            local humanoid = getHumanoid()
+            local character = getCharacter()
+            local tool = backpack:FindFirstChild(itemName) or character:FindFirstChild(itemName)
+
+            if tool and tool:IsA("Tool") then
+                humanoid:EquipTool(tool)
+                return tool
+            end
+            return nil
+        end
+
+        local function unequip()
+            getHumanoid():UnequipTools()
+        end
+
+        local function firePrompt(prompt)
+            if prompt and prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                pcall(function()
+                    fireproximityprompt(prompt, 0)
+                end)
+            end
+        end
+
+        local function getClosestPrompt()
+            local hrp = getHRP()
+            local closestPrompt = nil
+            local closestDist = math.huge
+
+            for _, prompt in pairs(workspace:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                    local part = prompt.Parent
+                    if part and part:IsA("BasePart") then
+                        local dist = (hrp.Position - part.Position).Magnitude
+                        if dist < closestDist then
+                            closestDist = dist
+                            closestPrompt = prompt
+                        end
+                    end
+                end
+            end
+
+            return closestPrompt
+        end
+
+        setAllPromptsHoldDurationZero()
+
+        -- STEP 1
+        local function runStep1()
+
+            -- 🔥 RANDOM POT TELEPORT
+            local pot = getRandomFreeCookingPot()
+            if not pot then
+                warn("No free cooking pots found")
+                return false
+            end
+
+            local pos = pot:IsA("Model") and pot:GetPivot().Position or pot.Position
+            teleport(pos.X, pos.Y + 3, pos.Z)
+
+            local ExoticShopRemote = ReplicatedStorage:WaitForChild("ExoticShopRemote")
+
+            -- 🔥 BUY ONLY MISSING ITEMS
+            for _, itemName in ipairs(itemsToBuy) do
+                if not hasItemAnywhere(itemName) then
+                    pcall(function()
+                        ExoticShopRemote:InvokeServer(itemName)
+                    end)
+                    task.wait(0.15)
+                end
+            end
+
+            -- 🔥 VERIFY ALL ITEMS EXIST
+            for _, itemName in ipairs(itemsToBuy) do
+                if not hasItemAnywhere(itemName) then
+                    showGui(itemName .. " not found after buying.", Color3.fromRGB(200, 0, 0))
+                    return false
+                end
+            end
+
+            task.wait(0.5)
+
+            local stovePrompt = getClosestPrompt()
+            if not stovePrompt then
+                showGui("No stove prompt found.", Color3.fromRGB(200, 0, 0))
+                return false
+            end
+
+            firePrompt(stovePrompt)
+            task.wait(0.5)
+            firePrompt(stovePrompt)
+            task.wait(0.3)
+
+            for _, itemName in ipairs(itemsToBuy) do
+                local tool = equipItem(itemName)
+
+                if tool then
+                    task.wait(0.2)
+                    firePrompt(stovePrompt)
+
+                    if itemName == "Ice-Fruit Cupz" then
+                        task.wait(2)
+
+                        while stovePrompt and not stovePrompt.Enabled do
+                            task.wait(0.1)
+                        end
+
+                        firePrompt(stovePrompt)
+                        task.wait(0.3)
+                        unequip()
+                    else
+                        task.wait(2)
+                    end
+                end
+            end
+
+            showGui("Please Wait.", Color3.fromRGB(85, 85, 85))
+            return true
+        end
+
+          -- STEP 2
+        local function induceLag()
+            for _ = 1, 10 do
+                task.spawn(function()
+                    while task.wait() do end
+                end)
+            end
+        end
+
+        local function runStep2()
+            if not hasItemAnywhere("Ice-Fruit Cupz") then
+                showGui("Ice-Fruit Cupz not found.", Color3.fromRGB(200, 0, 0))
+                return false
+            end
+
+            local originalPosition = getHRP().Position
+            local sellPart = workspace:FindFirstChild("IceFruit Sell")
+            local sellPrompt = sellPart and sellPart:FindFirstChild("ProximityPrompt")
+
+            if not sellPrompt then
+                showGui("IceFruit Sell prompt not found.", Color3.fromRGB(200, 0, 0))
+                return false
+            end
+
+            equipItem("Ice-Fruit Cupz")
+            teleport(-69, 287, -321)
+            task.wait(0.2)
+
+            induceLag()
+
+            for _ = 1, 2000 do
+                pcall(function()
+                    fireproximityprompt(sellPrompt, 0)
+                end)
+            end
+
+            task.wait(1)
+            teleport(originalPosition.X, originalPosition.Y, originalPosition.Z)
+
+            showGui("Step 2 done.\nStarting Step 3...", Color3.fromRGB(85, 85, 85))
+            return true
+        end
+
+local function runStep3()
+    local VALID_ON_COLOR = Color3.fromRGB(27,27,27)
+
+    local function isValid(on)
+        if not (on and on:IsA("BasePart")) then return false end
+        local c = on.Color
+        return math.abs(c.R-27/255)<0.02
+            and math.abs(c.G-27/255)<0.02
+            and math.abs(c.B-27/255)<0.02
+    end
+
+    local function triggerPrompt(prompt)
+        if not (prompt and prompt:IsA("ProximityPrompt")) then return end
+
+        pcall(function()
+            prompt.HoldDuration = 0
+            prompt.RequiresLineOfSight = false
+            prompt.MaxActivationDistance = 9999
+
+            fireproximityprompt(prompt)
+            task.wait(0.2)
+            fireproximityprompt(prompt)
+            task.wait(0.2)
+            fireproximityprompt(prompt)
+        end)
+    end
+
+    local validCounters = {}
+
+    local function add(model)
+        local counter = model:FindFirstChild("Counter")
+        local on = counter and counter:FindFirstChild("On")
+        if not isValid(on) then return end
+
+        local cashPrompt = on:FindFirstChild("PromptTach") and on.PromptTach:FindFirstChild("CashPrompt")
+        local beep = on:FindFirstChild("Beep")
+
+        local grabPrompt = model:FindFirstChild("DuffleBag")
+            and model.DuffleBag:FindFirstChild("Attachment")
+            and model.DuffleBag.Attachment:FindFirstChild("GrabPrompt")
+
+        if cashPrompt and beep and grabPrompt then
+            for _,v in ipairs(validCounters) do
+                if v.prompt == cashPrompt then return end
+            end
+            table.insert(validCounters,{prompt=cashPrompt,beep=beep,grab=grabPrompt})
+        end
+    end
+
+    -- find ALL washers
+    for _,m in ipairs(workspace:WaitForChild("CounterBag"):GetChildren()) do add(m) end
+    for _,m in ipairs(workspace:GetDescendants()) do
+        if m:IsA("Model") and m:FindFirstChild("Counter") and m:FindFirstChild("DuffleBag") then
+            add(m)
+        end
+    end
+
+    if #validCounters == 0 then
+        warn("No washers found")
+        return false
+    end
+
+    local selected = validCounters[math.random(1,#validCounters)]
+    local cashPrompt = selected.prompt
+    local beep = selected.beep
+    local grabPrompt = selected.grab
+
+    local count = 0
+    local connection
+
+    local function go()
+        local part = cashPrompt
+        while part and not part:IsA("BasePart") do part = part.Parent end
+        if not part then return end
+
+        local pos = part.Position + Vector3.new(0,2,0)
+
+        teleport(pos.X,pos.Y,pos.Z)
+        task.wait(0.6)
+
+        -- 🔥 COUNT BREAD FIX
+        triggerPrompt(cashPrompt)
+
+        beep.Ended:Wait()
+        count += 1
+
+        if count == 2 then
+            equipItem("MoneyReady")
+
+            while hasItemAnywhere("MoneyReady") do
+                triggerPrompt(grabPrompt)
+                task.wait(0.3)
+            end
+
+            if connection then connection:Disconnect() end
+        end
+    end
+
+    go()
+    connection = beep.Played:Connect(go)
+
+    -- 🔥 STAY ON MACHINE UNTIL BAG
+    local start = tick()
+    repeat
+        local part = cashPrompt
+        while part and not part:IsA("BasePart") do part = part.Parent end
+
+        if part then
+            teleport(part.Position.X, part.Position.Y + 2, part.Position.Z)
+        end
+
+        task.wait(0.25)
+    until hasItemAnywhere("BagOfMoney") or tick() - start > 60
+
+    if not hasItemAnywhere("BagOfMoney") then
+        warn("No BagOfMoney")
+        return false
+    end
+
+    equipItem("BagOfMoney")
+    task.wait(0.3)
+
+    teleport(-222,284,-1201)
+    task.wait(0.5)
+
+    local atm = workspace.ATMMoney and workspace.ATMMoney:FindFirstChildOfClass("ProximityPrompt")
+    if atm then
+        triggerPrompt(atm)
+    else
+        warn("ATM prompt missing")
+        return false
+    end
+
+    return true
+end
+        local ok1 = runStep1()
+
+        if ok1 then
+            task.wait(1)
+
+            local ok2 = runStep2()
+
+            if ok2 then
+                task.wait(1)
+                runStep3()
+            end
+        end
+    end
+})
+
+
+MoneySection:Button({
+    Text = "Sell Ice-Fruit Cupz (Step 2)",
+    Callback = function()
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        local backpack = LocalPlayer:WaitForChild("Backpack")
+        local cup = backpack:FindFirstChild("Ice-Fruit Cupz")
+            or (character and character:FindFirstChild("Ice-Fruit Cupz"))
+
+        if not (hrp and humanoid) then
+            showGui("Character is not ready.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+        if not (cup and cup:IsA("Tool")) then
+            showGui("You do not have an Ice-Fruit Cupz.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        local sellPart = workspace:FindFirstChild("IceFruit Sell")
+        local sellPrompt = sellPart and sellPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+        if not sellPrompt then
+            showGui("IceFruit Sell prompt not found.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        local originalCFrame = hrp.CFrame
+        local ok, err = pcall(function()
+            humanoid:EquipTool(cup)
+            teleport(28, 287, -342)
+            task.wait(0.5)
+
+            -- Trigger the sell prompt once; deliberately avoid infinite lag loops
+            -- or thousands of prompt activations that can freeze the client.
+            if typeof(fireproximityprompt) == "function" then
+                fireproximityprompt(sellPrompt, 0)
+            else
+                showGui("Prompt helper is unavailable in this executor.", Color3.fromRGB(200, 0, 0))
+            end
+            task.wait(1)
+            teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
+        end)
+
+        if not ok then
+            pcall(function()
+                teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
+            end)
+            warn("Sell Ice-Fruit Cupz failed: " .. tostring(err))
+            showGui("Sell failed. Check the console.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        showGui("Sell attempt complete. Check your inventory/cash.", Color3.fromRGB(85, 85, 85))
+    end
+})
+
+MoneySection:Button({
+    Text = "Sell Koolaid",
+    Callback = function()
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        local backpack = LocalPlayer:WaitForChild("Backpack")
+
+        if not (hrp and humanoid) then
+            showGui("Character is not ready.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        -- Find a Koolaid-named tool in the Backpack or currently equipped.
+        local koolaidTool
+        for _, container in ipairs({backpack, character}) do
+            for _, item in ipairs(container:GetChildren()) do
+                if item:IsA("Tool") and item.Name:lower():gsub("%-", ""):find("koolaid", 1, true) then
+                    koolaidTool = item
+                    break
+                end
+            end
+            if koolaidTool then break end
+        end
+
+        if not koolaidTool then
+            showGui("No Koolaid tool found in your inventory.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        -- Locate a prompt close to the Koolaid Sell Truck coordinates.
+        local truckPosition = Vector3.new(-69, 287, -320)
+        local sellPrompt, shortest = nil, 35
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and obj.Enabled then
+                local part = obj.Parent
+                while part and not part:IsA("BasePart") do
+                    part = part.Parent
+                end
+                if part then
+                    local distance = (part.Position - truckPosition).Magnitude
+                    if distance < shortest then
+                        sellPrompt, shortest = obj, distance
+                    end
+                end
+            end
+        end
+
+        if not sellPrompt then
+            showGui("No active sell prompt found near the Koolaid truck.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        local originalCFrame = hrp.CFrame
+        local ok, err = pcall(function()
+            humanoid:EquipTool(koolaidTool)
+            task.wait(0.25)
+            teleport(truckPosition.X, truckPosition.Y, truckPosition.Z)
+            task.wait(0.5)
+
+            if typeof(fireproximityprompt) ~= "function" then
+                error("Prompt helper is unavailable in this executor.")
+            end
+            fireproximityprompt(sellPrompt, 0)
+            task.wait(0.75)
+            teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
+        end)
+
+        if not ok then
+            pcall(function()
+                teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
+            end)
+            warn("Sell Koolaid failed: " .. tostring(err))
+            showGui("Sell Koolaid failed. Check the console.", Color3.fromRGB(200, 0, 0))
+            return
+        end
+
+        showGui("Koolaid sell attempt complete. Check your inventory/cash.", Color3.fromRGB(85, 85, 85))
+    end
+})
+
+MoneySection:Button({
+    Text = "Wash Money",
+    Callback = function()
+        local backpack = LocalPlayer:WaitForChild("Backpack")
+        local character = getCharacter()
+        local hrp = getHRP()
+        local originalCFrame = hrp.CFrame
+
+        local function hasBag()
+            character = getCharacter()
+            return backpack:FindFirstChild("BagOfMoney")
+                or (character and character:FindFirstChild("BagOfMoney"))
+        end
+
+        local function closestPrompt(maxDistance)
+            character = getCharacter()
+            hrp = getHRP()
+            local closest, shortest = nil, maxDistance or math.huge
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") and obj.Enabled then
+                    local part = obj.Parent
+                    while part and not part:IsA("BasePart") do part = part.Parent end
+                    if part then
+                        local distance = (hrp.Position - part.Position).Magnitude
+                        if distance < shortest then
+                            closest, shortest = obj, distance
+                        end
+                    end
+                end
+            end
+            return closest
+        end
+
+        local ok, err = pcall(function()
+            showGui("Wash Money and Stuff Bag.\n\nRest Is Automated.", Color3.fromRGB(85, 85, 85))
+
+            -- Use this script's shared teleport helper so it follows the same
+            -- anti-detection/character-state handling as the other buttons.
+            teleport(-1217, 254, -3637)
+
+            -- Wait a limited time for the money bag to appear.
+            local waitStart = os.clock()
+            repeat
+                task.wait(0.5)
+            until hasBag() or os.clock() - waitStart >= 60
+
+            local bag = hasBag()
+            if not bag then
+                showGui("BagOfMoney did not appear. Wash step timed out.", Color3.fromRGB(200, 0, 0))
+                return
+            end
+
+            local humanoid = getHumanoid()
+            if bag:IsA("Tool") then
+                humanoid:EquipTool(bag)
+            end
+
+            -- Bank location used by the existing money-washing flow.
+            teleport(-224, 284, -1201)
+            task.wait(0.5)
+
+            local bankStart = os.clock()
+            while hasBag() and os.clock() - bankStart < 30 do
+                local prompt = closestPrompt(30)
+                if prompt and typeof(fireproximityprompt) == "function" then
+                    pcall(function()
+                        fireproximityprompt(prompt, 0)
+                    end)
+                end
+                task.wait(0.25)
+            end
+
+            if not hasBag() then
+                showGui("Wash Money attempt finished. Check your cash/inventory.", Color3.fromRGB(0, 170, 80))
+            else
+                showGui("Bag is still in your inventory. Check the bank prompt.", Color3.fromRGB(200, 120, 0))
+            end
+        end)
+
+        if not ok then
+            warn("Wash Money failed: " .. tostring(err))
+            showGui("Wash Money failed. Check the console.", Color3.fromRGB(200, 0, 0))
+        end
+    end
+})
+
+MoneySection:Toggle({
+    Text = "Grab Safe Money",
+ 	Default = false,
+    Callback = function(v)
+        getgenv().AutoSaveSafes = v
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/jhBiT85t"))()
+        end
+    end
+})
+
+local MarketSection = recoveryTab:Section({ Text = "Market Seller", Side = "Left" })
+local selectedTool = ""
+local selectedAmount = 1
+local selectedPrice = 100
+
+MarketSection:Input({ Placeholder = "Enter Tool Name", Flag = "ToolName", Callback = function(text) selectedTool = text end })
+MarketSection:Input({ Placeholder = "Enter Amount", Flag = "SellAmount", Callback = function(text) selectedAmount = tonumber(text) or 1 end })
+MarketSection:Input({ Placeholder = "Enter Price", Flag = "SellPrice", Callback = function(text) selectedPrice = tonumber(text) or 100 end })
+MarketSection:Button({
+    Text = "Sell Tool",
+    Tooltip = "Sells tool every 3.5 seconds.",
+    Callback = function()
+        local listRemote = ReplicatedStorage:FindFirstChild("ListWeaponRemote")
+        if not listRemote then return end
+        if selectedTool ~= "" and selectedAmount > 0 and selectedPrice >= 0 then
+            task.spawn(function()
+                for i = 1, selectedAmount do
+                    listRemote:FireServer(selectedTool, selectedPrice)
+                    task.wait(3.5)
+                end
+            end)
+        end
+    end
+})
+
+local bankSection = recoveryTab:Section({ Text = "Bank" })
+local clonedATMGui = nil
+bankSection:Toggle({
+    Text = "Bronx ATM",
+    Callback = function(isToggled)
+        local atmGui = Lighting:FindFirstChild("Assets") and Lighting.Assets:FindFirstChild("GUI") and Lighting.Assets.GUI:FindFirstChild("ATMGui")
+        if isToggled then
+            if atmGui then
+                clonedATMGui = atmGui:Clone()
+                clonedATMGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+            end
+        else
+            if clonedATMGui then
+                clonedATMGui:Destroy()
+                clonedATMGui = nil
+            end
+        end
+    end
+})
+
+local bankAmount = 0
+bankSection:Input({ Placeholder = "Enter Amount", Flag = "TransactionAmount", Callback = function(input) bankAmount = tonumber(input) or 0 end })
+local depositLoop, withdrawLoop
+bankSection:Toggle({
+    Text = "Deposit (30K Max)",
+    Default = false,
+    Callback = function(state)
+        if state then
+            depositLoop = RunService.Heartbeat:Connect(function()
+                ReplicatedStorage.BankAction:FireServer("depo", bankAmount)
+                wait(4)
+            end)
+        else
+            if depositLoop then depositLoop:Disconnect(); depositLoop = nil end
+        end
+    end
+})
+
+bankSection:Toggle({
+    Text = "Withdrawal (90K Max)",
+    Default = false,
+    Callback = function(state)
+        if state then
+            withdrawLoop = RunService.Heartbeat:Connect(function()
+                ReplicatedStorage.BankAction:FireServer("with", bankAmount)
+                wait(4)
+            end)
+        else
+            if withdrawLoop then withdrawLoop:Disconnect(); withdrawLoop = nil end
+        end
+    end
+})
+
+local moneydropSection = recoveryTab:Section({ Text = "Money Drop", Side = "Right" })
+moneydropSection:Input({
+    Placeholder = "Enter Amount",
+    Flag = "TransactionAmount",
+    Callback = function(input)
+
+        getgenv().DropAmount = tonumber(input) or 0
+
+        if getgenv().DropAmount > 10000 then
+            getgenv().DropAmount = 10000
+        end
+    end
+})
+moneydropSection:Toggle({
+    Text = "Money Drop (10K Max)",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().MoneyDrop = v
+
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/M9FAvaeM"))()
+        end
+    end
+})
+
+
+local viewsSection = recoveryTab:Section({ Text = "Player Info", Side = "Right" })
+local SelectedPlayerName = nil
+
+local function CreateNotification(text)
+    local notifFrame = Instance.new("Frame")
+    notifFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    notifFrame.Size = UDim2.new(0, 300, 0, 80)
+    notifFrame.Position = UDim2.new(0.5, -150, 0, 50)
+    notifFrame.AnchorPoint = Vector2.new(0.5, 0)
+    notifFrame.BorderSizePixel = 0
+    notifFrame.BackgroundTransparency = 0.15
+    notifFrame.ZIndex = 1000
+    local uicorner = Instance.new("UICorner", notifFrame)
+    uicorner.CornerRadius = UDim.new(0, 8)
+    local label = Instance.new("TextLabel", notifFrame)
+    label.Size = UDim2.new(1, -20, 1, -20)
+    label.Position = UDim2.new(0, 10, 0, 10)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextWrapped = true
+    label.Font = Enum.Font.SourceSansSemibold
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Top
+    label.ZIndex = 1001
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if pg then
+        local screenGui = pg:FindFirstChild("RevampedCityNotificationGui")
+        if not screenGui then
+            screenGui = Instance.new("ScreenGui")
+            screenGui.Name = "RevampedCityNotificationGui"
+            screenGui.ResetOnSpawn = false
+            screenGui.Parent = pg
+        end
+        notifFrame.Parent = screenGui
+    else
+        notifFrame.Parent = game.CoreGui
+    end
+    task.spawn(function()
+        task.wait(4)
+        for i = 1, 10 do
+            notifFrame.BackgroundTransparency = notifFrame.BackgroundTransparency + 0.08
+            label.TextTransparency = label.TextTransparency + 0.08
+            task.wait(0.05)
+        end
+        notifFrame:Destroy()
+    end)
+end
+
+viewsSection:Input({
+    Text = "Target Player",
+    Placeholder = "Enter player name or display name",
+    Callback = function(input)
+        input = input:lower()
+        local found = nil
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Name:lower():find(input) or player.DisplayName:lower():find(input) then
+                found = player.Name
+                break
+            end
+        end
+        SelectedPlayerName = found
+    end
+})
+
+local function getTargetPlayer()
+    if SelectedPlayerName then return Players:FindFirstChild(SelectedPlayerName) end
+    return nil
+end
+
+local function formatItemNames(items)
+    if #items == 0 then return "None" end
+    return table.concat(items, ", ")
+end
+
+viewsSection:Button({
+    Text = "View Safe Items",
+    Callback = function()
+        local target = getTargetPlayer()
+        if target and target:FindFirstChild("InvData") then
+            local itemNames = {}
+            for _, item in ipairs(target.InvData:GetChildren()) do table.insert(itemNames, item.Name) end
+            CreateNotification("Safe Items for " .. target.Name .. ":\n" .. formatItemNames(itemNames))
+        else
+            CreateNotification("Safe data unavailable for player.")
+        end
+    end
+})
+
+viewsSection:Button({
+    Text = "View Bank",
+    Callback = function()
+        local target = getTargetPlayer()
+        if target and target:FindFirstChild("stored") and target.stored:FindFirstChild("Bank") then
+            CreateNotification("Bank Balance for " .. target.Name .. ": $" .. target.stored.Bank.Value)
+        else
+            CreateNotification("Bank data unavailable for player.")
+        end
+    end
+})
+
+viewsSection:Button({
+    Text = "View Wallet",
+    Callback = function()
+        local target = getTargetPlayer()
+        if target and target:FindFirstChild("stored") and target.stored:FindFirstChild("Money") then
+            CreateNotification("Wallet for " .. target.Name .. ": $" .. target.stored.Money.Value)
+        else
+            CreateNotification("Wallet data unavailable for player.")
+        end
+    end
+})
+
+viewsSection:Button({
+    Text = "View Inventory",
+    Callback = function()
+        local target = getTargetPlayer()
+        if target and target:FindFirstChild("Backpack") then
+            local itemNames = {}
+            for _, item in ipairs(target.Backpack:GetChildren()) do table.insert(itemNames, item.Name) end
+            CreateNotification("Inventory for " .. target.Name .. ":\n" .. formatItemNames(itemNames))
+        else
+            CreateNotification("Inventory data unavailable for player.")
+        end
+    end
+})
+
+local ClothingSection = recoveryTab:Section({
+    Text = "Clothing",
+    Side = "Left"
+})
+
+ClothingSection:Button({
+    Text = "Buy All Clothing",
+    Callback = function()
+        loadstring(game:HttpGet("https://pastebin.com/raw/8VFwQc4j"))()
+    end
+})
+-- =========================
+-- SHOP TAB (FINAL)
+-- =========================
+local shopTab = Window:Tab({ Text = "Shop" })
+
+-- 🔒 BLOCKED ZONES (POLICE)
+local BLOCKED_ZONES = {
+    { pos = Vector3.new(-1451, 255, -3133), radius = 500 },
+}
+
+local function isBlocked(pos)
+    for _, z in ipairs(BLOCKED_ZONES) do
+        if (pos - z.pos).Magnitude <= z.radius then
+            return true
+        end
+    end
+    return false
+end
+
+-- 🔍 PROMPT HELPERS
+local function getPromptPart(prompt)
+    local parent = prompt.Parent
+    if parent:IsA("BasePart") then return parent end
+    return parent:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function getAllItems(name)
+    local results = {}
+    for _, obj in ipairs(workspace.GUNS:GetDescendants()) do
+        if obj.Name == name then
+            table.insert(results, obj)
+        end
+    end
+    return results
+end
+
+local function getValidPrompt(name)
+    local valid = {}
+
+    for _, item in ipairs(getAllItems(name)) do
+        for _, obj in ipairs(item:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and obj.Name == "BuyPrompt" then
+                local part = getPromptPart(obj)
+
+                -- 🔥 FILTER HERE (not later)
+                if part and not isBlocked(part.Position) then
+                    table.insert(valid, {prompt = obj, part = part})
+                end
+            end
+        end
+    end
+
+    if #valid == 0 then return nil end
+
+    local hrp = getHRP().Position
+    table.sort(valid, function(a, b)
+        return (a.part.Position - hrp).Magnitude < (b.part.Position - hrp).Magnitude
+    end)
+
+    return valid[1]
+end
+
+-- 🎯 AMMO FILTER
+local ammoNames = {
+    [".10mm"]=true,[".308"]=true,[".9mm"]=true,
+    ["7.62"]=true,["5.56"]=true, 
+    [".Bullets"]=true,[".Drum"]=true,[".Extended"]=true,
+    [".FNMag"]=true,[".MacMag"]=true,[".TecMag"]=true,[".UziMag"]=true
+}
+
+-- 🛒 MAIN BUY FUNCTION
+local function buyItem(name)
+    local data = getValidPrompt(name)
+    if not data then return warn("No valid prompt:", name) end
+
+    local old = getHRP().Position
+
+    teleport(data.part.Position.X, data.part.Position.Y, data.part.Position.Z)
+    task.wait(0.25)
+
+    fireproximityprompt(data.prompt)
+
+    task.wait(0.25)
+
+    teleport(old.X, old.Y, old.Z)
+end
+
+-- 🧩 BUTTON BUILDER
+local function addBuyButtons(section, items)
+    for _, name in ipairs(items) do
+        section:Button({
+            Text = name,
+            Callback = function()
+                buyItem(name)
+            end
+        })
+    end
+end
+
+-- 🔥 TOP ROW
+local BagsSection = shopTab:Section({ Text = "Backpacks", Side = "Left" })
+addBuyButtons(BagsSection, {
+    "BagElite","Black RCR Bag","BlackPaintedBag","BlueEliteBag",
+    "CamoBag","DesignerBag","Drac Bag","PinkMCMBag",
+    "RCR Bag","Red RCR Bag","YelloPaintBag"
+})
+
+local AmmoSection = shopTab:Section({ Text = "Ammo", Side = "Right" })
+addBuyButtons(AmmoSection, {
+    ".10mm",".308",".9mm", "7.62", "5.56", ".Bullets",".Drum",
+    ".Extended",".FNMag",".MacMag",".TecMag",".UziMag"
+})
+
+-- 🍔 FOOD
+local FoodSection = shopTab:Section({ Text = "Food" })
+addBuyButtons(FoodSection, {
+    "Burger","ChickenBox","ChickenLeg","Coffe","HOT CHAETOZ",
+    "JerkChicken","Lil Pizzas","Pizza","PopayChicken","Rice & Chicken","WAKIS"
+})
+
+-- 🧥 WEARABLES
+local WearablesSection = shopTab:Section({ Text = "Wearables" })
+addBuyButtons(WearablesSection, {
+    "BlackGloves","BluGloves","WhiteGloves",
+    "CovidBlack","CovidBlu","Shiesty"
+})
+
+-- 🛠 TOOLS
+local ToolsSection = shopTab:Section({ Text = "Tools", Side = "Right" })
+addBuyButtons(ToolsSection, {
+    "Axe","BigBlade","Blade","Cleaver",
+    "Drill","Knife","Machete","Roller"
+})
+
+-- 🎲 MISC
+local MiscSection = shopTab:Section({ Text = "Misc", Side = "Right" })
+addBuyButtons(MiscSection, {
+    "Basketball","C4","Card","Chair","DeftunCard",
+    "Firework","Flash Light","Guitar","PaintBucket"
+})
+
+-- 💰 EXOTIC DEALER
+local ExoticDealerSection = shopTab:Section({ Text = "Exotic Dealer" })
+
+local function buyExoticItem(itemName)
+    ReplicatedStorage:WaitForChild("ExoticShopRemote"):InvokeServer(itemName)
+end
+
+ExoticDealerSection:Button({ Text = "Lemonade $500", Callback = function() buyExoticItem("Lemonade") end })
+ExoticDealerSection:Button({ Text = "FakeCard $700", Callback = function() buyExoticItem("FakeCard") end })
+ExoticDealerSection:Button({ Text = "G26 $550", Callback = function() buyExoticItem("G26") end })
+ExoticDealerSection:Button({ Text = "Shiesty $75", Callback = function() buyExoticItem("Shiesty") end })
+ExoticDealerSection:Button({ Text = "RawSteak $10", Callback = function() buyExoticItem("RawSteak") end })
+ExoticDealerSection:Button({ Text = "Ice-Fruit Bag $2500", Callback = function() buyExoticItem("Ice-Fruit Bag") end })
+ExoticDealerSection:Button({ Text = "Ice-Fruit Cupz $150", Callback = function() buyExoticItem("Ice-Fruit Cupz") end })
+ExoticDealerSection:Button({ Text = "FijiWater $48", Callback = function() buyExoticItem("FijiWater") end })
+ExoticDealerSection:Button({ Text = "FreshWater $48", Callback = function() buyExoticItem("FreshWater") end })
+
+
+-- ⛽ GAS STATION
+local GasStationSection = shopTab:Section({ Text = "Gas Station" })
+
+local ShopRemote = ReplicatedStorage:WaitForChild("ShopRemote")
+
+local function buyGasItem(itemName)
+    ShopRemote:InvokeServer(itemName)
+end
+
+GasStationSection:Button({
+    Text = "Shiesty",
+    Callback = function()
+        buyGasItem("Shiesty")
+    end
+})
+
+GasStationSection:Button({
+    Text = "Dice",
+    Callback = function()
+        buyGasItem("Dice")
+    end
+})
+
+GasStationSection:Button({
+    Text = "ShiestyReddy",
+    Callback = function()
+        buyGasItem("ShiestyReddy")
+    end
+})
+
+GasStationSection:Button({
+    Text = "ReddyGloves",
+    Callback = function()
+        buyGasItem("ReddyGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "CamoShiesty",
+    Callback = function()
+        buyGasItem("CamoShiesty")
+    end
+})
+
+GasStationSection:Button({
+    Text = "CamoGloves",
+    Callback = function()
+        buyGasItem("CamoGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "Water",
+    Callback = function()
+        buyGasItem("Water")
+    end
+})
+
+GasStationSection:Button({
+    Text = "BluGloves",
+    Callback = function()
+        buyGasItem("BluGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "WhiteGloves",
+    Callback = function()
+        buyGasItem("WhiteGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "BlackGloves",
+    Callback = function()
+        buyGasItem("BlackGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "RawSteak",
+    Callback = function()
+        buyGasItem("RawSteak")
+    end
+})
+
+GasStationSection:Button({
+    Text = "WhiteShiesty",
+    Callback = function()
+        buyGasItem("WhiteShiesty")
+    end
+})
+
+GasStationSection:Button({
+    Text = "RawChicken",
+    Callback = function()
+        buyGasItem("RawChicken")
+    end
+})
+
+GasStationSection:Button({
+    Text = "PinkCamoGloves",
+    Callback = function()
+        buyGasItem("PinkCamoGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "RedGloves",
+    Callback = function()
+        buyGasItem("RedGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "BluCamoGloves",
+    Callback = function()
+        buyGasItem("BluCamoGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "BluShiestyCam",
+    Callback = function()
+        buyGasItem("BluShiestyCam")
+    end
+})
+
+GasStationSection:Button({
+    Text = "PurpleCamoGloves",
+    Callback = function()
+        buyGasItem("PurpleCamoGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "YelloCamoGloves",
+    Callback = function()
+        buyGasItem("YelloCamoGloves")
+    end
+})
+
+GasStationSection:Button({
+    Text = "YelloShiesty",
+    Callback = function()
+        buyGasItem("YelloShiesty")
+    end
+})
+
+GasStationSection:Button({
+    Text = "RedCamoGloves",
+    Callback = function()
+        buyGasItem("RedCamoGloves")
+    end
+})
+
+-- ❤️ HEALTH
+local HealthSection = shopTab:Section({ Text = "Health" })
+
+local function buyHealthItem(itemName)
+    ReplicatedStorage:WaitForChild("ShopRemote2"):InvokeServer(itemName)
+end
+
+HealthSection:Button({
+    Text = "Bandage $350",
+    Callback = function()
+        buyHealthItem("Bandage")
+    end
+})
+
+local GunsSection = shopTab:Section({ Text = "Guns", Side = "Right" })
+addBuyButtons(GunsSection, {
+    "100 Round ARP", "Cutlass M9", "100 Round Glock","100R ARScope","100Rnd 556AR",
+    "100RndTanG19","100TanARScope","1911","1911/Extended",
+    "223DrumBeam","223Rifle","223RifleDrum","223Tan",
+    "300ARG","300ARPTan","300BlackOut","300DrumB","38RoundGlock",
+    "4inch ARP","5.7RugaExt","50Rnd BLK","50RounAR",
+    "50Round Drac","50Round Ghost","556z RifleScope","5inch GARP",
+    "60Rd ARP","60RounM16","66 S&W","7.62ARP SCOPE",
+    "9mmDrac","AK-12","AK-47","AK-Drum","AKS-74U",
+    "AR WITTA GRIP","AR-10","AR223","AR960Round","ARClearMag",
+    "ARP WIT SCOPE","ARP-Orange","ARPDrum","ARPReaper","ARPReaperR",
+    "ARPTan","ARPistol","ARWittaVect","BABY-AR","BABY-ARP",
+    "BABY-ARPG","BerettaM9W","BigDrac","BlaccDraco","BlackOutDrac",
+    "BlackOutMillie","BlackedDraco","ClearMagDrac","Colt .45",
+    "DDM4","DDM4 Grip","DDM4 Tan","Diamondback AR","Diamondback Beam",
+    "Draco","DracoD","DracoS","FN 502","FN57B","FNXBeam",
+    "FNXBeamG","FNXBeamTan","Five-Seven","Five-SevenExtended",
+    "FiveSevenBeam","Fully-ARP","Fully-Drac","Fully-FN",
+    "G17Mos","G17WittaButton","G19Drum","G19Extended","G19xDrum",
+    "G21","G21Drum","G22Switch","G22Vect","G22VectMag",
+    "G23 W 50Rnd","G23Switch","G23Tan W 50Rnd","G23VectMag",
+    "G26","G26VectBeam","G27Drum","G27Ext","G29","G29Drum",
+    "G2C","G2CBeam","G2CBlueTip","G2CE","G2CExtended","G30Drum",
+    "G34DrumFlash","G34DrumGrip","G3CFlash","G40MosDrum",
+    "G43ClearMag","G43XVect","GSwitch","GhostARP","GhostARPDrum",
+    "GhostGlock","Glock17","Glock17Drum","Glock17Ext",
+    "Glock19Drum","Glock19Flash","Glock19X","Glock19xDrum",
+    "Glock20Drum","Glock20Ext","Glock22","Glock23","Glock23Drum",
+    "Glock23Extended","Glock26","Glock29","Glock30Ext","Glock30Vect",
+    "Glock34","Glock34Ext","Glock40","Glock40Drum","Glock40Ext",
+    "Glock42","Glock42Drum","Glock42Extended","Glock42Switch",
+    "Glock43Drum","Glock45","Glock45Drum","Glock45Flash",
+    "Glock45Vect","GlockS","GlockSilencerFlash","GlockSwitch",
+    "GlockSwitch2","GlockWittaScope","Golden1911","Golden1911Ext",
+    "GoldenButton","HPBrowning Ext","HellcatXD","HellcatXDBeam",
+    "HellcatXDrum","Hellpup AK","Hi-Point","M&P-15","M17",
+    "M17Drum","M17Ext","M19Silva","M4 TR16","M416","M9",
+    "M9DrumBeam","M9Ext","MK-47B","MKRifle","Mac-11","Makarov",
+    "MasterPiece30","Micro-ARPistol","Micro-Arp","Micro300Blacout",
+    "Mini ARP","Mini ARP Drum","Mini-Draco","NSR-9Drum","NSR-Drum",
+    "P320Drum","P320DrumB","P320Ext","P80Extended","P80G19Grip",
+    "P80G26Drum","PLR-100Rnd","PLR-16","PLR-Drum","PP7Silencer",
+    "PP7Silver","PSA Dagger","PSA-AR","PSA100Rnd","PeanutButterGlock",
+    "PolyXMOS","PolymerDrum","PolymerEXT","RS556-Drum","Ruger 5.7",
+    "Ruger 5.7Drum","RugerLCP","RugerLCPDrum","RugerP","RugerP345",
+    "S&W MP","S&W Ruger","SAR9Tan","SARPDrum","SR16Grip",
+    "Semi-AKM","Semi-Tec","SilvaARPFlash","Silver11","SilverM19Drum",
+    "SpringField XD","SpringFieldExt","TP9EliteBeam","TP9EliteDrum",
+    "TP9EliteTan","TSR-15SE","TSR-Drum","Tan57BluTip","Tan57OranTip",
+    "UrbanDefiler","UrbanDefilerExt","UrbanTannedDrum","VP9",
+    "VP9Drum","VP9Scope","WaltherExt","WhiteARPBeam","YelloButtonSwitch"
+})
+
+-- =========================
+-- RAGE TAB
+-- =========================
+local RageTab = Window:Tab({ Text = "Rage" })
+local ExploitSection = RageTab:Section({ Text = "Exploits" })
+
+
+
+ExploitSection:Input({
+    Text = "Target Player",
+    Placeholder = "Enter name",
+    Callback = function(v)
+        targetPlayerName = tostring(v or "")
+    end
+})
+
+
+ExploitSection:Toggle({
+    Text = "Bring Target Player",
+    Callback = function(v)
+
+        getgenv().BringTarget = v
+        getgenv().TargetPlayerName = targetPlayerName
+
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/ZWwsAbVY"))()
+        end
+    end
+})
+
+ExploitSection:Toggle({
+    Text = "Bring All Players in Circle",
+    Callback = function(v)
+
+        getgenv().BringPlayers = v
+
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/NGSna529"))()
+        end
+    end
+})
+
+
+
+-- ========================================================
+-- UI SECTION
+-- ========================================================
+local flingSection = RageTab:Section({ Text = "Fling / Kick", Side = "Right" })
+
+flingSection:Input({
+    Text = "Target Player",
+    Placeholder = "Enter name",
+    Callback = function(v)
+        targetName = v
+    end
+})
+
+flingSection:Toggle({
+    Text = "Friend Check",
+    Default = true,
+    Callback = function(v)
+        friendCheck = v
+    end
+})
+
+flingSection:Button({
+    Text = "Attempt Kick",
+    Callback = function()
+
+        getgenv().TargetName = targetName
+        getgenv().FriendCheck = friendCheck
+
+        loadstring(game:HttpGet("https://pastebin.com/raw/cQx0WKYL"))()
+    end
+})
+
+flingSection:Toggle({
+    Text = "Kick All Players",
+    Callback = function(v)
+
+        getgenv().KickAll = v
+        getgenv().FriendCheck = friendCheck
+
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/LcgzZTud"))()
+        end
+    end
+})
+
+-- =========================
+-- PICK UP SECTION
+-- =========================
+local PickUpSection = RageTab:Section({ Text = "Pick Up" })
+
+
+PickUpSection:Toggle({
+    Text = "Pickup All Guns",
+    Callback = function(Value)
+
+        getgenv().PickupGuns = Value
+
+        if Value then
+            loadstring(game:HttpGet("https://pastebin.com/raw/P6vPAEEb"))()
+        end
+    end
+})
+-- =========================
+-- TROLL TAB
+-- =========================
+local TrollTab = Window:Tab({ Text = "Troll" })
+local twitterSection = TrollTab:Section({ Text = "Twitter" })
+local tweetMessage = "Revamped.City"
+local v108 = false
+local spammingRepost = false
+local spammingHeart = false
+
+twitterSection:Input({ Text = "Tweet Message", Placeholder = "Enter your tweet message", Callback = function(value) tweetMessage = value end })
+
+twitterSection:Toggle({
+    Text = "Spam Tweet",
+    Description = "Send repeated tweets to annoy people in the server.",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().SpamTweet = v
+        getgenv().TweetMessage = tweetMessage
+
+        if v then
+            loadstring(game:HttpGet("https://pastebin.com/raw/u5uK32rY"))()
+        end
+    end
+})
+
+twitterSection:Toggle({
+    Text = "Spam Repost All",
+    Description = "Continuously repost all tweets.",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().SpamRepost = v
+
+        if v then
+            getgenv().SpamHeart = false
+
+            loadstring(game:HttpGet("https://pastebin.com/raw/3bm79z3m"))()
+        end
+    end
+})
+
+twitterSection:Toggle({
+    Text = "Spam Heart All",
+    Description = "Continuously heart all tweets.",
+    Default = false,
+    Callback = function(v)
+
+        getgenv().SpamHeart = v
+
+        if v then
+            getgenv().SpamRepost = false
+
+            loadstring(game:HttpGet("https://pastebin.com/raw/i6wbwti0"))()
+        end
+    end
+})
+
