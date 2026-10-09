@@ -992,158 +992,7 @@ dupeSection:Button({
     end
 })
 
--- Safe Dupe Once + Auto Safe Dupe
-getgenv().plugzStoreDuped = true
-
-local function GetSafe()
-    local safe = nil
-
-    pcall(function()
-        local doorSS = workspace:WaitForChild("HomeDoorSS", 3)
-        local homeDoor = doorSS and doorSS:WaitForChild("HomeDoor", 3)
-        safe = homeDoor and homeDoor:WaitForChild("Safe", 3)
-    end)
-
-    if not safe then
-        pcall(function()
-            local map = workspace:FindFirstChild("1# Map")
-            local crosswalks = map and map:FindFirstChild("2 Crosswalks")
-            local safes = crosswalks and crosswalks:FindFirstChild("Safes")
-            if safes then
-                for _, v in ipairs(safes:GetChildren()) do
-                    local part = v:FindFirstChild("Union") or v:FindFirstChildWhichIsA("BasePart")
-                    if part then
-                        safe = v
-                        break
-                    end
-                end
-            end
-        end)
-    end
-
-    return safe
-end
-
--- Teleport to the detected safe from the Recovery tab.
-dupeSection:Button({
-    Text = "Go To Safe",
-    Description = "Teleports your character beside the detected safe.",
-    Callback = function()
-        local safe = GetSafe()
-        if not safe then
-            showNotification("Safe not found!")
-            return
-        end
-
-        local safePart = safe:IsA("BasePart") and safe
-            or safe:FindFirstChild("Union")
-            or safe:FindFirstChildWhichIsA("BasePart", true)
-        if not safePart then
-            showNotification("Could not find a position for the safe.")
-            return
-        end
-
-        local ok, err = pcall(function()
-            local target = safePart.Position + Vector3.new(0, 3, 5)
-            teleport(target.X, target.Y, target.Z)
-        end)
-        if ok then
-            showNotification("Teleported to the safe.")
-        else
-            warn("Go To Safe failed:", err)
-            showNotification("Teleport failed; check the console.")
-        end
-    end
-})
-
-local safeDupeBusy = false
-local autoSafeDupeEnabled = false
-
-local function runSafeDupe(showMessages)
-    if safeDupeBusy then
-        return false, "A safe operation is already running."
-    end
-
-    local character = getCharacter()
-    local tool = character and character:FindFirstChildOfClass("Tool")
-    if not tool then
-        return false, "Equip the item you want to process first."
-    end
-
-    local toolName = tool.Name
-    local safe = GetSafe()
-    if not safe then
-        return false, "Safe not found!"
-    end
-
-    local inventoryRemote = ReplicatedStorage:FindFirstChild("Inventory")
-    local backpackRemote = ReplicatedStorage:FindFirstChild("BackpackRemote")
-    if not inventoryRemote or not backpackRemote then
-        return false, "Required inventory remotes were not found."
-    end
-
-    safeDupeBusy = true
-    local ok, err = pcall(function()
-        pcall(function()
-            character:WaitForChild("Humanoid"):UnequipTools()
-        end)
-        backpackRemote:InvokeServer("Store", toolName)
-        inventoryRemote:FireServer("Change", toolName, "Backpack", safe)
-        task.wait(2)
-        backpackRemote:InvokeServer("Grab", toolName)
-    end)
-    safeDupeBusy = false
-
-    if not ok then
-        warn("Safe operation failed:", err)
-        return false, "Safe operation failed; check the console."
-    end
-
-    return true, "Safe requests sent for " .. toolName .. ". Verify your inventory."
-end
-
-dupeSection:Button({
-    Text = "Safe Dupe Once",
-    Description = "Attempts one store and retrieve cycle using the equipped tool.",
-    Callback = function()
-        task.spawn(function()
-            showNotification("Attempting safe operation...")
-            local ok, message = runSafeDupe(true)
-            showNotification(message)
-        end)
-    end
-})
-
-dupeSection:Toggle({
-    Text = "Auto Safe Dupe",
-    Description = "Repeats the safe operation while enabled. Keep the target tool equipped.",
-    Default = false,
-    Callback = function(state)
-        autoSafeDupeEnabled = state
-        getgenv().AutoSafeDupeEnabled = state
-
-        if state then
-            task.spawn(function()
-                showNotification("Auto Safe Dupe enabled.")
-                while autoSafeDupeEnabled do
-                    local ok, message = runSafeDupe(false)
-                    if not ok then
-                        -- Avoid spamming notifications while waiting for the tool or safe.
-                        if message ~= "A safe operation is already running." then
-                            showNotification(message)
-                        end
-                        task.wait(3)
-                    else
-                        task.wait(5)
-                    end
-                end
-            end)
-        else
-            showNotification("Auto Safe Dupe disabled.")
-        end
-    end
-})
-
+-- Recovery controls requested for removal have been removed.
 local MoneySection = recoveryTab:Section({ Text = "Max Money", Side = "Right" })
 
 
@@ -1521,120 +1370,51 @@ MoneySection:Button({
         local hrp = character and character:FindFirstChild("HumanoidRootPart")
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local backpack = LocalPlayer:WaitForChild("Backpack")
-        local cup = backpack:FindFirstChild("Ice-Fruit Cupz")
-            or (character and character:FindFirstChild("Ice-Fruit Cupz"))
 
         if not (hrp and humanoid) then
             showGui("Character is not ready.", Color3.fromRGB(200, 0, 0))
             return
         end
-        if not (cup and cup:IsA("Tool")) then
-            showGui("You do not have an Ice-Fruit Cupz.", Color3.fromRGB(200, 0, 0))
+
+        local cupz = backpack:FindFirstChild("Ice-Fruit Cupz")
+            or character:FindFirstChild("Ice-Fruit Cupz")
+        if not (cupz and cupz:IsA("Tool")) then
+            showGui("You do not have an Ice-Fruit Cupz!", Color3.fromRGB(200, 0, 0))
             return
         end
 
         local sellPart = workspace:FindFirstChild("IceFruit Sell")
         local sellPrompt = sellPart and sellPart:FindFirstChildWhichIsA("ProximityPrompt", true)
-        if not sellPrompt then
-            showGui("IceFruit Sell prompt not found.", Color3.fromRGB(200, 0, 0))
+        if not (sellPart and sellPrompt and sellPrompt.Enabled) then
+            showGui("IceFruit Sell prompt was not found or is disabled.", Color3.fromRGB(200, 0, 0))
             return
         end
 
         local originalCFrame = hrp.CFrame
+        local sellPosition = Vector3.new(28, 287, -342)
         local ok, err = pcall(function()
-            humanoid:EquipTool(cup)
-            teleport(28, 287, -342)
-            task.wait(0.5)
-
-            -- Trigger the sell prompt once; deliberately avoid infinite lag loops
-            -- or thousands of prompt activations that can freeze the client.
-            if typeof(fireproximityprompt) == "function" then
-                fireproximityprompt(sellPrompt, 0)
-            else
-                showGui("Prompt helper is unavailable in this executor.", Color3.fromRGB(200, 0, 0))
-            end
-            task.wait(1)
-            teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
-        end)
-
-        if not ok then
-            pcall(function()
-                teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
-            end)
-            warn("Sell Ice-Fruit Cupz failed: " .. tostring(err))
-            showGui("Sell failed. Check the console.", Color3.fromRGB(200, 0, 0))
-            return
-        end
-
-        showGui("Sell attempt complete. Check your inventory/cash.", Color3.fromRGB(85, 85, 85))
-    end
-})
-
-MoneySection:Button({
-    Text = "Sell Koolaid",
-    Callback = function()
-        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local hrp = character and character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        local backpack = LocalPlayer:WaitForChild("Backpack")
-
-        if not (hrp and humanoid) then
-            showGui("Character is not ready.", Color3.fromRGB(200, 0, 0))
-            return
-        end
-
-        -- Find a Koolaid-named tool in the Backpack or currently equipped.
-        local koolaidTool
-        for _, container in ipairs({backpack, character}) do
-            for _, item in ipairs(container:GetChildren()) do
-                if item:IsA("Tool") and item.Name:lower():gsub("%-", ""):find("koolaid", 1, true) then
-                    koolaidTool = item
-                    break
-                end
-            end
-            if koolaidTool then break end
-        end
-
-        if not koolaidTool then
-            showGui("No Koolaid tool found in your inventory.", Color3.fromRGB(200, 0, 0))
-            return
-        end
-
-        -- Locate a prompt close to the Koolaid Sell Truck coordinates.
-        local truckPosition = Vector3.new(-69, 287, -320)
-        local sellPrompt, shortest = nil, 35
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") and obj.Enabled then
-                local part = obj.Parent
-                while part and not part:IsA("BasePart") do
-                    part = part.Parent
-                end
-                if part then
-                    local distance = (part.Position - truckPosition).Magnitude
-                    if distance < shortest then
-                        sellPrompt, shortest = obj, distance
-                    end
-                end
-            end
-        end
-
-        if not sellPrompt then
-            showGui("No active sell prompt found near the Koolaid truck.", Color3.fromRGB(200, 0, 0))
-            return
-        end
-
-        local originalCFrame = hrp.CFrame
-        local ok, err = pcall(function()
-            humanoid:EquipTool(koolaidTool)
+            humanoid:EquipTool(cupz)
             task.wait(0.25)
-            teleport(truckPosition.X, truckPosition.Y, truckPosition.Z)
-            task.wait(0.5)
+            teleport(sellPosition.X, sellPosition.Y, sellPosition.Z)
+            task.wait(0.3)
 
             if typeof(fireproximityprompt) ~= "function" then
                 error("Prompt helper is unavailable in this executor.")
             end
-            fireproximityprompt(sellPrompt, 0)
-            task.wait(0.75)
+
+            -- Bounded retries instead of the source script's lag-inducing
+            -- infinite loops and 2,000 immediate prompt calls.
+            for attempt = 1, 20 do
+                if not sellPrompt.Parent or not sellPrompt.Enabled then
+                    break
+                end
+                pcall(function()
+                    fireproximityprompt(sellPrompt, 0)
+                end)
+                task.wait(0.1)
+            end
+
+            task.wait(0.5)
             teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
         end)
 
@@ -1642,12 +1422,12 @@ MoneySection:Button({
             pcall(function()
                 teleport(originalCFrame.Position.X, originalCFrame.Position.Y, originalCFrame.Position.Z)
             end)
-            warn("Sell Koolaid failed: " .. tostring(err))
-            showGui("Sell Koolaid failed. Check the console.", Color3.fromRGB(200, 0, 0))
+            warn("Sell Ice-Fruit Cupz Step 2 failed: " .. tostring(err))
+            showGui("Step 2 failed. Check the console.", Color3.fromRGB(200, 0, 0))
             return
         end
 
-        showGui("Koolaid sell attempt complete. Check your inventory/cash.", Color3.fromRGB(85, 85, 85))
+        showGui("Step 2 finished. Run Step 3.", Color3.fromRGB(85, 85, 85))
     end
 })
 
